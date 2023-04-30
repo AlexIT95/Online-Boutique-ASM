@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.18.3-alpine AS builder
+FROM golang:1.20.3-alpine@sha256:48c87cd759e3342fcbc4241533337141e7d8457ec33ab9660abe0a4346c30b60 AS builder
 RUN apk add --no-cache ca-certificates git
 RUN apk add build-base
 
@@ -26,11 +26,9 @@ COPY . .
 ARG SKAFFOLD_GO_GCFLAGS
 RUN go build -gcflags="${SKAFFOLD_GO_GCFLAGS}" -o /productcatalogservice .
 
-FROM alpine AS release
+FROM alpine:3.17.3@sha256:124c7d2707904eea7431fffe91522a01e5a861a624ee31d03372cc1d138a3126 AS without-grpc-health-probe-bin
 RUN apk add --no-cache ca-certificates
-RUN GRPC_HEALTH_PROBE_VERSION=v0.4.11 && \
-    wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /bin/grpc_health_probe
+
 WORKDIR /src
 COPY --from=builder /productcatalogservice ./server
 COPY products.json .
@@ -43,3 +41,8 @@ ENV GOTRACEBACK=single
 EXPOSE 3550
 ENTRYPOINT ["/src/server"]
 
+FROM without-grpc-health-probe-bin
+# renovate: datasource=github-releases depName=grpc-ecosystem/grpc-health-probe
+ENV GRPC_HEALTH_PROBE_VERSION=v0.4.18
+RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
